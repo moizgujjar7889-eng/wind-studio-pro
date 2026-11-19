@@ -24,7 +24,7 @@ export default function App() {
   const dragRef = useRef<{ x: number; active: boolean }>({ x: 0, active: false });
 
   const [location, setLocation] = useState<LocationPreset>(LOCATIONS.garden);
-  const [character, setCharacter] = useState<CharacterPreset>(CHARACTERS[1]); // Sofia – good default
+  const [character, setCharacter] = useState<CharacterPreset>(CHARACTERS[0]); // Lady Red – GLB model
   const [listening, setListening] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [wind, setWind] = useState(0);
@@ -38,7 +38,7 @@ export default function App() {
   // Boot 3D scene
   useEffect(() => {
     if (!mountRef.current) return;
-    const scene = new WindScene(mountRef.current, LOCATIONS.garden, CHARACTERS[1], {
+    const scene = new WindScene(mountRef.current, LOCATIONS.garden, CHARACTERS[0], {
       onFps: setFps,
     });
     sceneRef.current = scene;

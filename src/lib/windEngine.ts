@@ -11,9 +11,8 @@ export class WindEngine {
   private ctx: AudioContext | null = null;
   private stream: MediaStream | null = null;
   private analyser: AnalyserNode | null = null;
-  private timeData: Float32Array | null = null;
-  private freq: Float32Array | null = null;
-  private raf = 0;
+  private timeData: Float32Array<ArrayBuffer> | null = null;
+  private freq: Float32Array<ArrayBuffer> | null = null;  private raf = 0;
   private listener: Listener | null = null;
   private noiseFloor = 0.012;
   private startedAt = 0;

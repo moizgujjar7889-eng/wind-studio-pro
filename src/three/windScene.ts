@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { CharacterPreset, LocationPreset } from '../lib/types';
 import { createCharacter, type CharacterRig } from './character';
+import { loadGLBCharacter } from './glbCharacter';
 import { createDressSimulation, type DressSimulation } from './dressSim';
 import { createEnvironment, type EnvironmentHandle } from './environment';
 
@@ -26,6 +27,7 @@ export class WindScene {
   private lastFpsTime = 0;
   private onFps?: (fps: number) => void;
   private disposed = false;
+  private loadId = 0;
 
   constructor(
     private container: HTMLElement,
@@ -69,7 +71,8 @@ export class WindScene {
   }
 
   setCharacter(preset: CharacterPreset) {
-    // Dispose previous
+    const myLoadId = ++this.loadId;
+
     if (this.dress) {
       this.dress.dispose();
       this.dress = null;
@@ -81,17 +84,45 @@ export class WindScene {
     }
 
     this.currentChar = preset;
-    this.rig = createCharacter(preset);
-    this.scene.add(this.rig.group);
 
-    this.dress = createDressSimulation(this.rig, this.scene, {
-      dressColor: preset.dressColor,
-      accentColor: preset.accentColor,
-      hairColor: preset.hairColor,
-      dressLength: preset.dressLength,
-      fit: preset.fit,
-      style: preset.style,
-    });
+    if (preset.glbPath) {
+      loadGLBCharacter(preset, preset.glbPath)
+        .then((rig) => {
+          if (this.disposed || myLoadId !== this.loadId) {
+            rig.dispose();
+            return;
+          }
+          this.rig = rig;
+          this.scene.add(rig.group);
+          this.dress = null;
+        })
+        .catch((err) => {
+          console.error('Failed to load GLB character:', err);
+          if (this.disposed || myLoadId !== this.loadId) return;
+          this.rig = createCharacter(preset);
+          this.scene.add(this.rig.group);
+          this.dress = createDressSimulation(this.rig, this.scene, {
+            dressColor: preset.dressColor,
+            accentColor: preset.accentColor,
+            hairColor: preset.hairColor,
+            dressLength: preset.dressLength,
+            fit: preset.fit,
+            style: preset.style,
+          });
+        });
+    } else {
+      this.rig = createCharacter(preset);
+      this.scene.add(this.rig.group);
+
+      this.dress = createDressSimulation(this.rig, this.scene, {
+        dressColor: preset.dressColor,
+        accentColor: preset.accentColor,
+        hairColor: preset.hairColor,
+        dressLength: preset.dressLength,
+        fit: preset.fit,
+        style: preset.style,
+      });
+    }
   }
 
   setWind(level: number) {
@@ -121,20 +152,27 @@ export class WindScene {
     const dt = Math.min(0.033, this.clock.getDelta());
     const time = this.clock.elapsedTime;
 
-    // Camera orbit
     this.zoom += (this.targetZoom - this.zoom) * 0.12;
     const camX = Math.sin(this.yaw) * this.zoom;
     const camZ = Math.cos(this.yaw) * this.zoom;
     this.camera.position.set(camX, 1.55, camZ);
     this.camera.lookAt(0, 1.25, 0);
 
-    // Update systems
     this.env.update(dt, time, this.windLevel);
     this.dress?.update(dt, time, this.windLevel);
 
+    // Gentle sway for GLB models under wind
+    if (this.rig && !this.dress && this.windLevel > 0.05) {
+      const sway = Math.sin(time * 3.5) * 0.04 * this.windLevel;
+      this.rig.group.rotation.z = sway;
+      this.rig.group.rotation.y = Math.sin(time * 1.8) * 0.03 * this.windLevel;
+    } else if (this.rig && !this.dress) {
+      this.rig.group.rotation.z *= 0.9;
+      this.rig.group.rotation.y *= 0.9;
+    }
+
     this.renderer.render(this.scene, this.camera);
 
-    // FPS
     this.frameCount++;
     const now = performance.now();
     if (now - this.lastFpsTime >= 1000) {

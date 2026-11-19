@@ -81,7 +81,7 @@ export function createEnvironment(
   scene.add(amb);
 
   // Particles
-  const maxParticles = 260;
+  const maxParticles = 320;
   const pGeo = new THREE.BufferGeometry();
   const pPos = new Float32Array(maxParticles * 3);
   const pVel = new Float32Array(maxParticles * 3);
@@ -141,21 +141,44 @@ export function createEnvironment(
       let y = pos.getY(i);
       let z = pos.getZ(i);
 
-      x += pVel[i * 3] * speed * 0.016;
-      y += pVel[i * 3 + 1] * 0.016 + Math.sin(time * 2 + i) * 0.002;
-      z += pVel[i * 3 + 2] * speed * 0.016;
+      // Type-specific motion
+      if (particleType === 'snow') {
+        x += (pVel[i * 3] * 0.4 + Math.sin(time * 1.5 + i) * 0.3) * speed * 0.016;
+        y += pVel[i * 3 + 1] * 0.016 - 0.015;
+        z += (pVel[i * 3 + 2] * 0.4 + Math.cos(time * 1.2 + i) * 0.25) * speed * 0.016;
+      } else if (particleType === 'sparkles') {
+        x += pVel[i * 3] * speed * 0.01;
+        y += Math.sin(time * 3 + i) * 0.008;
+        z += pVel[i * 3 + 2] * speed * 0.01;
+      } else {
+        x += pVel[i * 3] * speed * 0.016;
+        y += pVel[i * 3 + 1] * 0.016 + Math.sin(time * 2 + i) * 0.002;
+        z += pVel[i * 3 + 2] * speed * 0.016;
+      }
 
       // Recycle
-      if (x < -10 || y < 0.1 || y > 8 || Math.abs(z) > 10) {
-        x = 8 + Math.random() * 4;
-        y = 0.4 + Math.random() * 5;
-        z = (Math.random() - 0.5) * 14;
-        if (particleType === 'petals') {
-          pVel[i * 3 + 1] = -0.15 - Math.random() * 0.25;
-        } else if (particleType === 'sand') {
-          pVel[i * 3 + 1] = (Math.random() - 0.5) * 0.15;
+      if (x < -10 || y < 0.05 || y > 9 || Math.abs(z) > 12) {
+        if (particleType === 'snow') {
+          x = (Math.random() - 0.5) * 16;
+          y = 5 + Math.random() * 4;
+          z = (Math.random() - 0.5) * 16;
+          pVel[i * 3 + 1] = -0.2 - Math.random() * 0.3;
+        } else if (particleType === 'sparkles') {
+          x = (Math.random() - 0.5) * 10;
+          y = 0.5 + Math.random() * 3;
+          z = (Math.random() - 0.5) * 8;
+          pVel[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
         } else {
-          pVel[i * 3 + 1] = -0.1 - Math.random() * 0.2;
+          x = 8 + Math.random() * 4;
+          y = 0.4 + Math.random() * 5;
+          z = (Math.random() - 0.5) * 14;
+          if (particleType === 'petals') {
+            pVel[i * 3 + 1] = -0.15 - Math.random() * 0.25;
+          } else if (particleType === 'sand') {
+            pVel[i * 3 + 1] = (Math.random() - 0.5) * 0.15;
+          } else {
+            pVel[i * 3 + 1] = -0.1 - Math.random() * 0.2;
+          }
         }
       }
 

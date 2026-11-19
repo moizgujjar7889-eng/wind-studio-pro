@@ -5,7 +5,12 @@ export type LocationId =
   | 'rooftop'
   | 'terrace'
   | 'forest'
-  | 'courtyard';
+  | 'courtyard'
+  | 'snow'
+  | 'desert'
+  | 'night_city'
+  | 'lake'
+  | 'meadow';
 
 export interface LocationPreset {
   id: LocationId;
@@ -24,7 +29,7 @@ export interface LocationPreset {
   hemiSky: string;
   hemiGround: string;
   hemiIntensity: number;
-  particles: 'petals' | 'sand' | 'leaves' | 'dust';
+  particles: 'petals' | 'sand' | 'leaves' | 'dust' | 'snow' | 'sparkles';
   particleColor: string;
   particleCount: number;
 }
@@ -34,7 +39,10 @@ export type OutfitStyle =
   | 'summer_dress'
   | 'skirt_blouse'
   | 'jacket_skirt'
-  | 'trousers_top';
+  | 'trousers_top'
+  | 'saree'
+  | 'gown'
+  | 'casual';
 
 export interface CharacterPreset {
   id: string;

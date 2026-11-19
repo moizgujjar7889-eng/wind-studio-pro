@@ -2,19 +2,19 @@
 
 Interactive 3D wind simulation for adult female characters (18+).
 
-Blow into your phone microphone and the character’s clothes react in real time. Stronger blow → stronger lift. The character raises her hands to hold the hem down.
+Blow into your phone microphone and the character's clothes react in real time. Stronger blow → stronger lift.
 
 ## Features
 
 - **Microphone wind** – real breath / blow detection
 - **Demo mode** – automatic gusts when mic is off
 - **Manual slider** – precise wind control
-- **Cloth physics** – skirt / dress lifts with wind strength
+- **Cloth physics** – skirt / dress lifts with wind strength (procedural characters)
 - **Hand-hold animation** – arms rise to hold clothes when wind is strong
-- **7 locations** – Garden, Beach, Park, Rooftop, Terrace, Forest, Courtyard
-- **7 adult characters** – different outfits & skin tones
+- **12 locations** – Garden, Beach, Park, Rooftop, Terrace, Forest, Courtyard, Snow, Desert, Night City, Lakeside, Flower Meadow
+- **14 adult characters** – including 1 high-quality GLB model (Lady Red)
 - **Mobile-friendly** – works on phone browsers
-- **Optional GLB** – place models in `public/assets/characters/` (future ready)
+- **GLB support** – place models in `public/assets/characters/`
 
 ## Quick start
 
@@ -37,7 +37,35 @@ On a phone: allow microphone access, then blow.
 | Change character  | **Style** → Character        |
 | Change location   | **Style** → Location         |
 | Orbit camera      | Drag left / right            |
-| Zoom              | Mouse wheel / pinch (browser)|
+| Zoom              | Mouse wheel / pinch          |
+
+## Characters
+
+- **Lady Red** – High quality GLB model (red evening dress)
+- Amara, Sofia, Mei, Lila, Nora, Elena, Aria – procedural
+- Zara, Priya – saree style
+- Isabella – ball gown
+- Hana – casual
+- Maya, Luna – more dress styles
+
+All characters are **adult (18+)**. Do not replace them with child or teen models.
+
+## Locations (12)
+
+Garden · Beach · City Park · Rooftop · Outdoor Terrace · Forest Clearing · Modern Courtyard · Snow Field · Desert Dunes · Night City · Lakeside · Flower Meadow
+
+## Adding more GLB models
+
+1. Put the `.glb` file in `public/assets/characters/`
+2. Add a new entry in `src/lib/characters.ts` with `glbPath: '/assets/characters/your-model.glb'`
+
+## Build for production
+
+```bash
+npm run build
+```
+
+Output is in `dist/`. Deploy to Vercel, Netlify, or any static host.
 
 ## Project structure
 
@@ -46,41 +74,15 @@ src/
   App.tsx                 # Main UI
   components/             # WindMeter, StylePanel
   lib/
-    characters.ts         # Adult character presets
+    characters.ts         # Character presets
     locations.ts          # Environment presets
     windEngine.ts         # Mic + demo wind
     types.ts
   three/
     character.ts          # Procedural adult female
+    glbCharacter.ts       # GLB model loader
     cloth.ts              # Verlet cloth helpers
     dressSim.ts           # Skirt + hair + hands
     environment.ts        # Sky, ground, particles
     windScene.ts          # Three.js scene manager
 ```
-
-## Characters
-
-All characters are **adult (18+)** with realistic adult proportions.  
-Do not replace them with child or teen models.
-
-## Optional GLB models
-
-Place GLB files here if you want to extend later:
-
-```
-public/assets/characters/<id>.glb
-```
-
-The current version uses a high-quality procedural adult female. GLB loading can be added on top of the existing rig.
-
-## Build for production
-
-```bash
-npm run build
-```
-
-Output is in `dist/`. Deploy to any static host (Vercel, Netlify, GitHub Pages, etc.).
-
-## License
-
-Personal / educational use. Respect adult-only content guidelines.

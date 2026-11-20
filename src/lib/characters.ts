@@ -215,9 +215,6 @@ export const CHARACTERS: CharacterPreset[] = [
     style: 'summer_dress',
     description: 'Midnight purple summer dress',
   },
-];
-
-
   // Newly uploaded GLB characters
   {
     id: 'nicole',
@@ -271,3 +268,4 @@ export const CHARACTERS: CharacterPreset[] = [
     description: 'Ginget imported GLB character',
     glbPath: '/assets/characters/ginget.glb',
   },
+];

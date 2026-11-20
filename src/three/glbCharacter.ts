@@ -30,7 +30,8 @@ uniform float uWind; uniform float uTime; uniform float uWeight;`,
         '#include <project_vertex>',
         `vec3 wPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 float nY = clamp((wPos.y - 0.42) / 0.72, 0.0, 1.0);
-float hem = pow(1.0 - nY, 1.7) * uWeight * smoothstep(0.12, 0.45, wPos.y);
+float zone = uWeight < 0.99 ? smoothstep(0.58, 0.8, wPos.y) * (1.0 - smoothstep(1.0, 1.2, wPos.y)) : smoothstep(0.12, 0.45, wPos.y);
+float hem = pow(1.0 - nY, 1.7) * uWeight * zone;
 float ph = uTime * 7.0 + wPos.x * 9.0 + wPos.z * 6.0;
 float gust = 0.5 + 0.5 * sin(uTime * 8.2);
 vec3 wDisp = vec3(
@@ -108,7 +109,7 @@ export async function loadGLBCharacter(
     const name = `${mesh.name} ${mats.map((m) => m.name).join(' ')}`.toLowerCase();
     const skinLike = /skin|body|face|head|leg|arm|hand|foot|feet|eye|teeth|lash|brow|nail/.test(name);
     const clothNamed = /dress|skirt|cloth|fabric|gown|top|shirt|jacket|hair/.test(name);
-    const weight = clothNamed ? 1 : skinLike ? 0 : 0.6;
+    const weight = clothNamed ? 1 : skinLike ? 0 : 0.5;
     mats.forEach((mat) => applyGpuWind(mat, windUniforms, weight, mesh));
   });
 

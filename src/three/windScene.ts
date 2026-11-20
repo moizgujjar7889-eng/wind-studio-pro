@@ -164,16 +164,6 @@ export class WindScene {
     this.dress?.update(dt, time, this.windLevel);
     this.rig?.update?.(dt, time, this.windLevel);
 
-    // Gentle sway for GLB models under wind
-    if (this.rig && !this.dress && this.windLevel > 0.05) {
-      const sway = Math.sin(time * 3.5) * 0.04 * this.windLevel;
-      this.rig.group.rotation.z = sway;
-      this.rig.group.rotation.y = Math.sin(time * 1.8) * 0.03 * this.windLevel;
-    } else if (this.rig && !this.dress) {
-      this.rig.group.rotation.z *= 0.9;
-      this.rig.group.rotation.y *= 0.9;
-    }
-
     this.renderer.render(this.scene, this.camera);
 
     this.frameCount++;

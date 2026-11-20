@@ -3,9 +3,55 @@ import type { LocationPreset } from '../lib/types';
 
 export interface EnvironmentHandle {
   setLocation(loc: LocationPreset): void;
+  /** true = a real HDRI photo sky is used: hide procedural sky/scenery */
+  setHdri(on: boolean): void;
   update(dt: number, time: number, wind01: number): void;
   dispose(): void;
 }
+
+function makeGroundTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#d6d6d6';
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 5200; i++) {
+    const v = 150 + Math.floor(Math.random() * 105);
+    g.fillStyle = `rgba(${v},${v},${v},0.55)`;
+    const w = 1 + Math.random() * 3;
+    g.fillRect(Math.random() * 256, Math.random() * 256, w, w * (1 + Math.random() * 2));
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(30, 30);
+  t.anisotropy = 4;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function makeSpriteTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 30);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,0.85)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const PARTICLE_SIZE: Record<string, number> = {
+  petals: 0.075,
+  leaves: 0.07,
+  sand: 0.035,
+  dust: 0.03,
+  snow: 0.06,
+  sparkles: 0.05,
+};
 
 export function createEnvironment(
   scene: THREE.Scene,
@@ -42,12 +88,15 @@ export function createEnvironment(
   scene.add(sky);
 
   // Ground
-  const groundGeo = new THREE.CircleGeometry(25, 48);
+  const groundGeo = new THREE.CircleGeometry(60, 64);
+  const groundTex = makeGroundTexture();
   const groundMat = new THREE.MeshStandardMaterial({
     color: initial.groundColor,
-    roughness: 0.92,
-    metalness: 0.02,
+    map: groundTex,
+    roughness: 0.95,
+    metalness: 0,
   });
+  const shadowOnlyMat = new THREE.ShadowMaterial({ opacity: 0.4 });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -61,13 +110,25 @@ export function createEnvironment(
   const addMesh = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, sx=1, sy=1, sz=1) => {
     const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); m.scale.set(sx,sy,sz); m.castShadow = true; m.receiveShadow = true; scenery.add(m); return m;
   };
+  const leafCols = ['#3f7a45', '#4d8c4f', '#356b3d', '#5b9a55', '#2f6238'];
   const addTree = (x: number, z: number, scale = 1, pine = false) => {
-    addMesh(new THREE.CylinderGeometry(0.09*scale,0.14*scale,1.25*scale,7), makeMat('#65452e'), x,0.62*scale,z);
+    const j = (Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
+    const r = Math.abs(j);
+    const bark = makeMat(r > 0.5 ? '#5e4330' : '#6d4f38', 0.95);
+    addMesh(new THREE.CylinderGeometry(0.07 * scale, 0.15 * scale, 1.4 * scale, 8), bark, x, 0.7 * scale, z);
     if (pine) {
-      for (let i=0;i<3;i++) addMesh(new THREE.ConeGeometry((0.62-i*0.12)*scale,0.9*scale,8), makeMat('#315b42'), x,(1.25+i*0.42)*scale,z);
+      for (let i = 0; i < 4; i++) {
+        addMesh(new THREE.ConeGeometry((0.78 - i * 0.14) * scale, 0.9 * scale, 9), makeMat(i % 2 ? '#2d5a40' : '#386b4a', 0.95), x, (1.2 + i * 0.5) * scale, z);
+      }
     } else {
-      addMesh(new THREE.SphereGeometry(0.65*scale,10,8), makeMat('#3e7847'), x,1.65*scale,z,1.15,0.9,1.05);
-      addMesh(new THREE.SphereGeometry(0.42*scale,9,7), makeMat('#568d4d'), x+0.32*scale,1.85*scale,z-0.12*scale);
+      const col = leafCols[Math.floor(r * leafCols.length) % leafCols.length];
+      const blobs: Array<[number, number, number, number]> = [
+        [0, 1.9, 0, 0.7], [0.4, 1.65, 0.15, 0.5], [-0.38, 1.7, -0.1, 0.52], [0.1, 2.3, -0.1, 0.46], [-0.1, 1.6, 0.4, 0.45],
+      ];
+      blobs.forEach(([bx, by, bz, br], i) => {
+        const m = addMesh(new THREE.IcosahedronGeometry(br * scale, 1), makeMat(i % 2 ? col : leafCols[(i + 1) % leafCols.length], 0.95), x + bx * scale, by * scale, z + bz * scale);
+        m.rotation.set(i, i * 2, 0);
+      });
     }
   };
   const addPalm = (x:number,z:number,scale=1) => {
@@ -133,17 +194,19 @@ export function createEnvironment(
   const sun = new THREE.DirectionalLight(initial.sunColor, initial.sunIntensity);
   sun.position.set(...initial.sunPosition);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.03;
   sun.shadow.camera.near = 1;
   sun.shadow.camera.far = 40;
-  sun.shadow.camera.left = -8;
-  sun.shadow.camera.right = 8;
-  sun.shadow.camera.top = 8;
-  sun.shadow.camera.bottom = -8;
+  sun.shadow.camera.left = -4;
+  sun.shadow.camera.right = 4;
+  sun.shadow.camera.top = 4;
+  sun.shadow.camera.bottom = -4;
   scene.add(sun);
 
   // Ambient fill
-  const amb = new THREE.AmbientLight(0xffffff, 0.26);
+  const amb = new THREE.AmbientLight(0xffffff, 0.12);
   scene.add(amb);
 
   // Particles
@@ -151,7 +214,6 @@ export function createEnvironment(
   const pGeo = new THREE.BufferGeometry();
   const pPos = new Float32Array(maxParticles * 3);
   const pVel = new Float32Array(maxParticles * 3);
-  const pSize = new Float32Array(maxParticles);
 
   for (let i = 0; i < maxParticles; i++) {
     pPos[i * 3] = (Math.random() - 0.5) * 18;
@@ -160,16 +222,16 @@ export function createEnvironment(
     pVel[i * 3] = -0.8 - Math.random() * 1.2;
     pVel[i * 3 + 1] = (Math.random() - 0.5) * 0.3;
     pVel[i * 3 + 2] = (Math.random() - 0.5) * 0.6;
-    pSize[i] = 0.04 + Math.random() * 0.08;
   }
   pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-  pGeo.setAttribute('size', new THREE.BufferAttribute(pSize, 1));
 
   const pMat = new THREE.PointsMaterial({
     color: initial.particleColor,
-    size: 0.12,
+    map: makeSpriteTexture(),
+    size: PARTICLE_SIZE[initial.particles] ?? 0.06,
     transparent: true,
-    opacity: 0.75,
+    alphaTest: 0.02,
+    opacity: 0.8,
     depthWrite: false,
     sizeAttenuation: true,
   });
@@ -178,6 +240,26 @@ export function createEnvironment(
 
   let currentCount = initial.particleCount;
   let particleType = initial.particles;
+  let currentLoc = initial;
+  let hdriOn = false;
+
+  function applyHdriLighting() {
+    hemi.intensity = currentLoc.hemiIntensity * 0.3;
+    if (scene.fog instanceof THREE.FogExp2) scene.fog.density = currentLoc.fogDensity * 0.25;
+  }
+
+  function setHdri(on: boolean) {
+    hdriOn = on;
+    sky.visible = !on;
+    scenery.visible = !on;
+    ground.material = on ? shadowOnlyMat : groundMat;
+    if (on) {
+      applyHdriLighting();
+    } else {
+      hemi.intensity = currentLoc.hemiIntensity;
+      if (scene.fog instanceof THREE.FogExp2) scene.fog.density = currentLoc.fogDensity;
+    }
+  }
 
   function setLocation(loc: LocationPreset) {
     (skyMat.uniforms.topColor.value as THREE.Color).set(loc.skyTop);
@@ -197,11 +279,18 @@ export function createEnvironment(
     pMat.color.set(loc.particleColor);
     currentCount = loc.particleCount;
     particleType = loc.particles;
+    pMat.size = PARTICLE_SIZE[loc.particles] ?? 0.06;
+    currentLoc = loc;
+    if (hdriOn) applyHdriLighting();
   }
 
   function update(_dt: number, time: number, wind01: number) {
     const pos = pGeo.getAttribute('position') as THREE.BufferAttribute;
-    const speed = 1.2 + wind01 * 4.5;
+    const blowing = wind01 > 0.03;
+    const speed = particleType === 'snow' ? 0.8 + wind01 * 4 : wind01 * 5;
+    particles.visible = blowing || particleType === 'snow';
+    pMat.opacity = particleType === 'snow' ? 0.85 : 0.85 * Math.min(1, wind01 * 3);
+    if (!particles.visible) return;
 
     for (let i = 0; i < currentCount; i++) {
       let x = pos.getX(i);
@@ -264,9 +353,12 @@ export function createEnvironment(
     skyMat.dispose();
     groundGeo.dispose();
     groundMat.dispose();
+    shadowOnlyMat.dispose();
+    groundTex.dispose();
     pGeo.dispose();
+    pMat.map?.dispose();
     pMat.dispose();
   }
 
-  return { setLocation, update, dispose };
+  return { setLocation, setHdri, update, dispose };
 }

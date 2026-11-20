@@ -4,14 +4,12 @@ import {
   Hand,
   Mic,
   MicOff,
-  RotateCcw,
-  Wind,
   Palette,
 } from 'lucide-react';
 import type { CharacterPreset, LocationPreset } from './lib/types';
 import { LOCATIONS } from './lib/locations';
-import { CHARACTERS } from './lib/characters';
-import { WindEngine, DemoWind } from './lib/windEngine';
+import { CHARACTERS, DEFAULT_CHARACTER_ID } from './lib/characters';
+import { WindEngine } from './lib/windEngine';
 import { WindScene } from './three/windScene';
 import WindMeter from './components/WindMeter';
 import StylePanel from './components/StylePanel';
@@ -20,16 +18,19 @@ export default function App() {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<WindScene | null>(null);
   const engineRef = useRef<WindEngine | null>(null);
-  const demoRef = useRef<DemoWind | null>(null);
-  const dragRef = useRef<{ x: number; active: boolean }>({ x: 0, active: false });
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchDist = useRef(0);
 
   const [location, setLocation] = useState<LocationPreset>(LOCATIONS.garden);
-  const [character, setCharacter] = useState<CharacterPreset>(CHARACTERS[0]); // Lady Red – GLB model
+  const [character, setCharacter] = useState<CharacterPreset>(
+    () => CHARACTERS.find((c) => c.id === DEFAULT_CHARACTER_ID) ?? CHARACTERS[0],
+  );
+  const [loadingModel, setLoadingModel] = useState(false);
   const [listening, setListening] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
   const [wind, setWind] = useState(0);
   const [peak, setPeak] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [modelError, setModelError] = useState<string | null>(null);
   const [panel, setPanel] = useState<'closed' | 'style'>('closed');
   const [fps, setFps] = useState(60);
   const [manualWind, setManualWind] = useState(0);
@@ -38,14 +39,17 @@ export default function App() {
   // Boot 3D scene
   useEffect(() => {
     if (!mountRef.current) return;
-    const scene = new WindScene(mountRef.current, LOCATIONS.garden, CHARACTERS[0], {
+    const scene = new WindScene(mountRef.current, location, character, {
       onFps: setFps,
+      onLoading: setLoadingModel,
+      onError: setModelError,
     });
     sceneRef.current = scene;
     return () => {
       scene.dispose();
       sceneRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -62,9 +66,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (listening || demoMode || useManual) return;
+    if (listening || useManual) return;
     applyWind(0);
-  }, [listening, demoMode, useManual, applyWind]);
+  }, [listening, useManual, applyWind]);
 
   useEffect(() => {
     if (!useManual) return;
@@ -74,8 +78,6 @@ export default function App() {
   // ---- Microphone ----
   const startMic = useCallback(async () => {
     setError(null);
-    demoRef.current?.stop();
-    setDemoMode(false);
     setUseManual(false);
 
     const engine = engineRef.current ?? new WindEngine();
@@ -94,7 +96,7 @@ export default function App() {
       await engine.start();
       setListening(true);
     } catch {
-      setError('Mic start nahi hua. Browser permission allow karein, HTTPS use karein, ya Demo / Slider try karein.');
+      setError('Mic start nahi hua. Browser permission allow karein, HTTPS use karein, ya Slider try karein.');
       setListening(false);
     }
   }, []);
@@ -106,57 +108,48 @@ export default function App() {
     setPeak(0);
   }, [applyWind]);
 
-  // ---- Demo wind ----
-  const startDemo = useCallback(() => {
-    stopMic();
-    setUseManual(false);
-    setError(null);
-    const demo = demoRef.current ?? new DemoWind();
-    demoRef.current = demo;
-    demo.onWind((level, status) => {
-      setWind(level);
-      setPeak(status.peak);
-      sceneRef.current?.setWind(level);
-    });
-    demo.start();
-    setDemoMode(true);
-  }, [stopMic]);
 
-  const stopDemo = useCallback(() => {
-    demoRef.current?.stop();
-    setDemoMode(false);
-    applyWind(0);
-    setPeak(0);
-  }, [applyWind]);
-
-  useEffect(() => {
-    return () => {
-      engineRef.current?.dispose();
-      demoRef.current?.stop();
-    };
-  }, []);
-
-  // ---- Orbit controls ----
+  // ---- Orbit (1 finger) + pinch zoom (2 fingers) ----
   const onPointerDown = (e: React.PointerEvent) => {
-    dragRef.current = { x: e.clientX, active: true };
-    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinchDist.current = Math.hypot(a.x - b.x, a.y - b.y);
+    }
   };
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragRef.current.active || !sceneRef.current) return;
-    const dx = e.clientX - dragRef.current.x;
-    dragRef.current.x = e.clientX;
-    sceneRef.current.addYaw(dx * 0.007);
+    const prev = pointers.current.get(e.pointerId);
+    if (!prev || !sceneRef.current) return;
+    const cur = { x: e.clientX, y: e.clientY };
+    pointers.current.set(e.pointerId, cur);
+    if (pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchDist.current > 0) sceneRef.current.addZoom((pinchDist.current - d) * 0.01);
+      pinchDist.current = d;
+    } else {
+      sceneRef.current.addYaw((cur.x - prev.x) * 0.007);
+    }
   };
-  const onPointerUp = () => {
-    dragRef.current.active = false;
+  const onPointerUp = (e: React.PointerEvent) => {
+    pointers.current.delete(e.pointerId);
+    pinchDist.current = 0;
   };
 
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    sceneRef.current?.addZoom(e.deltaY * 0.0025);
-  };
+  // Wheel must be a non-passive native listener, otherwise preventDefault() just logs warnings.
+  useEffect(() => {
+    const el = mountRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      sceneRef.current?.addZoom(e.deltaY * 0.0025);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
 
-  const active = listening || demoMode || useManual;
+  const active = listening || useManual;
 
   return (
     <div className="fixed inset-0 bg-[#0a0e14] overflow-hidden font-sans no-select">
@@ -168,7 +161,6 @@ export default function App() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onWheel={onWheel}
       />
 
       {/* Top bar */}
@@ -195,6 +187,22 @@ export default function App() {
       </div>
 
       {/* Error */}
+      {loadingModel && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/55 text-white/90 text-xs px-4 py-2 rounded-full backdrop-blur-sm">
+            Model load ho raha hai…
+          </div>
+        </div>
+      )}
+
+      {modelError && !error && (
+        <div className="absolute top-28 left-3 right-3 z-20 flex justify-center">
+          <div className="bg-amber-500/20 border border-amber-400/40 text-amber-100 text-xs px-3 py-2 rounded-lg max-w-sm text-center">
+            {modelError}
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="absolute top-28 left-3 right-3 z-20 flex justify-center">
           <div className="bg-rose-500/20 border border-rose-400/40 text-rose-100 text-xs px-3 py-2 rounded-lg max-w-sm text-center">
@@ -243,25 +251,6 @@ export default function App() {
             </button>
           )}
 
-          {/* Demo */}
-          {!demoMode ? (
-            <button
-              onClick={startDemo}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white/90 text-sm border border-white/15 transition"
-            >
-              <Wind size={16} />
-              Demo
-            </button>
-          ) : (
-            <button
-              onClick={stopDemo}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 text-sm border border-amber-400/30 transition"
-            >
-              <RotateCcw size={16} />
-              Stop Demo
-            </button>
-          )}
-
           {/* Manual toggle */}
           <button
             onClick={() => {
@@ -270,7 +259,6 @@ export default function App() {
                 applyWind(0);
               } else {
                 stopMic();
-                stopDemo();
                 setUseManual(true);
                 setManualWind(0.45);
               }

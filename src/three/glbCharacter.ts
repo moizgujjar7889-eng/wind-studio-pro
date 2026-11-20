@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { CharacterPreset } from '../lib/types';
 import type { CharacterRig } from './character';
 
@@ -50,6 +52,10 @@ export async function loadGLBCharacter(
   path: string,
 ): Promise<CharacterRig> {
   const loader = new GLTFLoader();
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+  loader.setDRACOLoader(draco);
+  loader.setMeshoptDecoder(MeshoptDecoder);
   const gltf = await loader.loadAsync(path);
   const group = new THREE.Group();
   const model = gltf.scene;
@@ -80,13 +86,21 @@ export async function loadGLBCharacter(
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
     mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    // Self-shadowing causes black stripes on imported models, so it is disabled.
+    mesh.receiveShadow = false;
     mesh.frustumCulled = false;
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     mats.forEach((mat) => {
       if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhysicalMaterial) {
         mat.roughness = Math.max(0.48, Math.min(mat.roughness ?? 0.75, 0.9));
         mat.envMapIntensity = 0.8;
+        // Metal without an environment map renders pure black.
+        mat.metalness = Math.min(mat.metalness ?? 0, 0.1);
+        mat.side = THREE.DoubleSide;
+        if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+        if (mat.transparent || mat.alphaTest > 0) { mat.alphaTest = 0.4; mat.transparent = false; mat.depthWrite = true; }
+        mat.emissive = mat.emissive ?? new THREE.Color(0);
+        if (mat.map && mat.emissive.getHex() === 0) { mat.emissive.set(0xffffff); mat.emissiveMap = mat.map; mat.emissiveIntensity = 0.18; }
         mat.needsUpdate = true;
       }
     });

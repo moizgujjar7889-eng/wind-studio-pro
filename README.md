@@ -9,10 +9,10 @@ Blow into your phone microphone and the character's clothes react in real time. 
 - **Microphone wind** – real breath / blow detection
 - **Demo mode** – automatic gusts when mic is off
 - **Manual slider** – precise wind control
-- **Cloth physics** – skirt / dress lifts with wind strength (procedural characters)
-- **Hand-hold animation** – arms rise to hold clothes when wind is strong
+- **Cloth response** – procedural skirts use cloth simulation; imported GLBs get lower-mesh wind deformation
+- **Hand-hold animation** – procedural arms react; imported GLB arms react only if arm bones are present
 - **12 locations** – Garden, Beach, Park, Rooftop, Terrace, Forest, Courtyard, Snow, Desert, Night City, Lakeside, Flower Meadow
-- **14 adult characters** – including 1 high-quality GLB model (Lady Red)
+- **14 procedural adult characters plus 4 imported GLB models**
 - **Mobile-friendly** – works on phone browsers
 - **GLB support** – place models in `public/assets/characters/`
 
@@ -86,3 +86,24 @@ src/
     environment.ts        # Sky, ground, particles
     windScene.ts          # Three.js scene manager
 ```
+
+
+## Imported GLB models in this package
+
+- Lady Red (`lady-red.glb`)
+- Elegance Dress (`elegance-dress.glb`)
+- Brown Halter Dress (`brown-halter-dress.glb`)
+- Long Hair Mini Dress (`long-hair-mini-dress.glb`)
+
+Imported files are checked at load time. Static meshes receive a restrained lower-mesh wind response; rigged files can also play embedded animation clips and arm bones can react when recognizable names are present. Full physical cloth simulation and reliable hand-to-hem posing still require a separate cloth mesh and a correctly rigged character.
+
+
+## Wind and scene improvements
+
+- Imported GLB meshes now receive a subtle lower-mesh wind deformation; the effect is strongest near the hem.
+- GLB animation clips are played when included in the model. Arm posing is only applied when the GLB contains recognizable arm bones.
+- Procedural characters retain the full simulated skirt, hair strands, and hand-hold response.
+- Locations now include lightweight procedural scenery (trees, palms, city blocks, water, dunes, and rocks) rather than only a sky and flat ground.
+- Renderer pixel ratio and shadow settings are tuned to reduce mobile GPU load.
+
+Note: arbitrary static GLB meshes cannot provide physically accurate garment simulation or a hand-catching pose without a rigged character and separate cloth mesh. For the best result, use rigged models with arm bones and cloth meshes.

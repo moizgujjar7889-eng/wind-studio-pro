@@ -94,7 +94,7 @@ export default function App() {
       await engine.start();
       setListening(true);
     } catch {
-      setError('Microphone access denied. Allow mic or use Demo / Slider.');
+      setError('Mic start nahi hua. Browser permission allow karein, HTTPS use karein, ya Demo / Slider try karein.');
       setListening(false);
     }
   }, []);

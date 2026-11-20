@@ -3,14 +3,46 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { CharacterPreset } from '../lib/types';
 import type { CharacterRig } from './character';
 
-type DeformableMesh = {
-  mesh: THREE.Mesh;
-  original: Float32Array;
-  localToGroup: THREE.Matrix4;
-  minY: number;
-  maxY: number;
-  weight: number;
-};
+
+type WindUniforms = { uWind: { value: number }; uTime: { value: number } };
+
+/** Cheap GPU wind: lower part of the outfit lifts and flutters. Works with skinned meshes. */
+function applyGpuWind(
+  mat: THREE.Material,
+  u: WindUniforms,
+  weight: number,
+  _mesh: THREE.Mesh,
+) {
+  if (weight <= 0) return;
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uWind = u.uWind;
+    shader.uniforms.uTime = u.uTime;
+    shader.uniforms.uWeight = { value: weight };
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+uniform float uWind; uniform float uTime; uniform float uWeight;`,
+      )
+      .replace(
+        '#include <project_vertex>',
+        `vec3 wPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+float nY = clamp((wPos.y - 0.42) / 0.72, 0.0, 1.0);
+float hem = pow(1.0 - nY, 1.7) * uWeight * smoothstep(0.12, 0.45, wPos.y);
+float ph = uTime * 7.0 + wPos.x * 9.0 + wPos.z * 6.0;
+float gust = 0.5 + 0.5 * sin(uTime * 8.2);
+vec3 wDisp = vec3(
+  sin(ph * 0.7) * 0.07 * uWind * hem,
+  (0.12 * uWind * gust + sin(ph) * 0.018 * uWind) * hem,
+  sin(ph * 0.9 + 1.3) * 0.05 * uWind * hem
+);
+transformed += inverse(mat3(modelMatrix)) * wDisp;
+#include <project_vertex>`,
+      );
+  };
+  mat.customProgramCacheKey = () => `wind-${weight}`;
+  mat.needsUpdate = true;
+}
 
 /** Loads a GLB, normalizes it to a common height, and adds a restrained wind response. */
 export async function loadGLBCharacter(
@@ -40,7 +72,7 @@ export async function loadGLBCharacter(
   model.updateMatrixWorld(true);
 
   const modelHeight = 1.72;
-  const deformables: DeformableMesh[] = [];
+  const windUniforms = { uWind: { value: 0 }, uTime: { value: 0 } };
   const mixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null;
   gltf.animations.forEach((clip) => mixer?.clipAction(clip).play());
 
@@ -59,28 +91,11 @@ export async function loadGLBCharacter(
       }
     });
 
-    // Cloth-like vertex movement only on lower-body geometry. Preserve original vertices every frame
-    // to prevent cumulative drift. If a model is one combined mesh, a smooth lower-body mask is used.
-    const geometry = mesh.geometry;
-    const position = geometry.getAttribute('position');
-    if (!position || !position.count) return;
-    const original = new Float32Array(position.array as ArrayLike<number>);
-    geometry.computeBoundingBox();
-    const bounds = geometry.boundingBox;
-    if (!bounds) return;
     const name = `${mesh.name} ${mats.map((m) => m.name).join(' ')}`.toLowerCase();
-    const clothNamed = /dress|skirt|cloth|fabric|gown|衣|裙/.test(name);
-    const localToGroup = new THREE.Matrix4();
-    const inverseGroup = new THREE.Matrix4().copy(group.matrixWorld).invert();
-    localToGroup.multiplyMatrices(inverseGroup, mesh.matrixWorld);
-    deformables.push({
-      mesh,
-      original,
-      localToGroup,
-      minY: bounds.min.y,
-      maxY: bounds.max.y,
-      weight: clothNamed ? 1 : 0.72,
-    });
+    const skinLike = /skin|body|face|head|leg|arm|hand|foot|feet|eye|teeth|lash|brow|nail/.test(name);
+    const clothNamed = /dress|skirt|cloth|fabric|gown|top|shirt|jacket|hair/.test(name);
+    const weight = clothNamed ? 1 : skinLike ? 0 : 0.6;
+    mats.forEach((mat) => applyGpuWind(mat, windUniforms, weight, mesh));
   });
 
   group.add(model);
@@ -121,38 +136,8 @@ export async function loadGLBCharacter(
   const update = (dt: number, time: number, wind01: number) => {
     const w = THREE.MathUtils.clamp(wind01, 0, 1);
     mixer?.update(Math.min(dt, 0.05));
-    group.updateMatrixWorld(true);
-    model.updateMatrixWorld(true);
-    const lift = Math.pow(w, 1.35);
-    const gust = 0.5 + 0.5 * Math.sin(time * 8.2);
-    for (const item of deformables) {
-      const attr = item.mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
-      const inverse = new THREE.Matrix4().copy(group.matrixWorld).invert();
-      const transform = new THREE.Matrix4().multiplyMatrices(inverse, item.mesh.matrixWorld);
-      const invTransform = transform.clone().invert();
-      const v = new THREE.Vector3();
-      const range = Math.max(0.001, item.maxY - item.minY);
-      for (let i = 0; i < attr.count; i++) {
-        const k = i * 3;
-        v.set(item.original[k], item.original[k + 1], item.original[k + 2]).applyMatrix4(transform);
-        const normalizedY = THREE.MathUtils.clamp((v.y - 0.42) / 0.72, 0, 1);
-        // Lower hem reacts most; waist stays almost fixed. Keep movement modest to avoid tearing.
-        const hemMask = Math.pow(1 - normalizedY, 1.7) * item.weight;
-        const phase = time * 7 + v.x * 9 + v.z * 6;
-        const flutter = Math.sin(phase) * 0.018 * lift * hemMask;
-        const rise = (0.12 * lift * gust + flutter) * hemMask;
-        const side = Math.sin(phase * 0.7) * 0.07 * lift * hemMask;
-        // Convert wind displacement from group space into mesh local space.
-        const groupPoint = v.clone();
-        groupPoint.x += side;
-        groupPoint.y += rise;
-        const invTransform = transform.clone().invert();
-        groupPoint.applyMatrix4(invTransform);
-        attr.setXYZ(i, groupPoint.x, groupPoint.y, groupPoint.z);
-      }
-      attr.needsUpdate = true;
-      item.mesh.geometry.computeVertexNormals();
-    }
+    windUniforms.uWind.value = Math.pow(w, 1.35);
+    windUniforms.uTime.value = time;
     // Only animated if the downloaded model actually contains named arm bones.
     const hold = THREE.MathUtils.smoothstep(w, 0.18, 0.82);
     boneTargets.forEach(({ bone, base, side }) => {

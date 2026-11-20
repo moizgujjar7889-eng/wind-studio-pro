@@ -12,7 +12,7 @@ Blow into your phone microphone and the character's clothes react in real time. 
 - **Cloth response** – procedural skirts use cloth simulation; imported GLBs get lower-mesh wind deformation
 - **Hand-hold animation** – procedural arms react; imported GLB arms react only if arm bones are present
 - **12 locations** – Garden, Beach, Park, Rooftop, Terrace, Forest, Courtyard, Snow, Desert, Night City, Lakeside, Flower Meadow
-- **14 procedural adult characters plus 4 imported GLB models**
+- **Imported realistic GLB models plus simple procedural characters**
 - **Mobile-friendly** – works on phone browsers
 - **GLB support** – place models in `public/assets/characters/`
 
@@ -107,3 +107,20 @@ Imported files are checked at load time. Static meshes receive a restrained lowe
 - Renderer pixel ratio and shadow settings are tuned to reduce mobile GPU load.
 
 Note: arbitrary static GLB meshes cannot provide physically accurate garment simulation or a hand-catching pose without a rigged character and separate cloth mesh. For the best result, use rigged models with arm bones and cloth meshes.
+
+
+## Models
+
+All characters and outfits are real GLB files in `public/assets/characters/`; there is no procedural/fake character any more.
+- `kind: 'body'` = full character. `kind: 'garment'` = dress only, shown on an invisible mannequin (ghost mannequin).
+- Add one: copy the `.glb` there and add one line in `src/lib/characters.ts`. Keep each file under ~20 MB.
+
+## Places (HDRI)
+
+Real photo skies live in `public/assets/places/<locationId>.hdr`. Included: garden, terrace, rooftop, courtyard, park, desert, western.
+Locations without an .hdr (beach, forest, snow, night_city, lake, meadow) use the built-in procedural scene.
+Free HDRIs: https://polyhaven.com/hdris (download 2k, HDR format).
+
+## Wind
+
+Wind moves the dress only while you blow into the mic (or use the Slider). With no blow the character only breathes and sways gently.

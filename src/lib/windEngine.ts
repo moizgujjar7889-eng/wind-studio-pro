@@ -18,6 +18,8 @@ export class WindEngine {
   private startedAt = 0;
   private smoothed = 0;
   private peakHold = 0;
+  private gateOpen = false;
+  private openFrames = 0;
   private status: WindEngineStatus = {
     phase: 'idle',
     level: 0,
@@ -53,6 +55,7 @@ export class WindEngine {
     }
 
     this.ctx = new AudioContext();
+    if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => undefined);
     const source = this.ctx.createMediaStreamSource(this.stream);
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 2048;
@@ -65,6 +68,8 @@ export class WindEngine {
     this.noiseFloor = 0.012;
     this.smoothed = 0;
     this.peakHold = 0;
+    this.gateOpen = false;
+    this.openFrames = 0;
     this.status = { phase: 'listening', level: 0, peak: 0, message: null };
     this.tick();
   }
@@ -137,7 +142,17 @@ export class WindEngine {
 
     // Curve: strong blow → high values quickly
     // Power curve makes heavy blow reach near 1.0
-    const shaped = Math.min(1, Math.pow(breath * 7.8, 0.58));
+    const raw = Math.min(1, Math.pow(breath * 7.8, 0.58));
+
+    // Gate: room noise, talking or a tiny puff must NOT move the dress.
+    // Wind starts only after a real blow (about 3 frames above OPEN) and stops when it falls below CLOSE.
+    const OPEN = 0.2;
+    const CLOSE = 0.09;
+    if (raw > OPEN) this.openFrames++;
+    else if (raw < CLOSE) this.openFrames = 0;
+    if (!this.gateOpen && this.openFrames >= 3) this.gateOpen = true;
+    if (this.gateOpen && raw < CLOSE) this.gateOpen = false;
+    const shaped = this.gateOpen ? raw : 0;
 
     this.peakHold = Math.max(this.peakHold * 0.992, shaped);
 
@@ -148,6 +163,7 @@ export class WindEngine {
       shaped > this.smoothed
         ? this.smoothed + (shaped - this.smoothed) * attack
         : this.smoothed + (shaped - this.smoothed) * release;
+    if (this.smoothed < 0.02 && shaped === 0) this.smoothed = 0;
 
     this.status = {
       phase: 'listening',

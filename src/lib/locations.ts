@@ -253,6 +253,27 @@ export const LOCATIONS: Record<LocationId, LocationPreset> = {
     particleColor: '#f0a0c0',
     particleCount: 200,
   },
+  western: {
+    id: 'western',
+    name: 'Western Town',
+    description: 'Dusty old western street with warm light',
+    ambient: 0.12,
+    response: 1.2,
+    skyTop: '#5a8ab8',
+    skyBottom: '#f0d8b0',
+    fogColor: '#e0cfae',
+    fogDensity: 0.012,
+    groundColor: '#b89a6a',
+    sunColor: '#ffe4b0',
+    sunIntensity: 2.8,
+    sunPosition: [7, 9, 3],
+    hemiSky: '#b0cce0',
+    hemiGround: '#a08a60',
+    hemiIntensity: 0.85,
+    particles: 'dust',
+    particleColor: '#d8c8a0',
+    particleCount: 140,
+  },
 };
 
 export const LOCATION_LIST: LocationPreset[] = Object.values(LOCATIONS);

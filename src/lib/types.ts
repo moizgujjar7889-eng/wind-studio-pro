@@ -10,7 +10,8 @@ export type LocationId =
   | 'desert'
   | 'night_city'
   | 'lake'
-  | 'meadow';
+  | 'meadow'
+  | 'western';
 
 export interface LocationPreset {
   id: LocationId;
@@ -34,31 +35,18 @@ export interface LocationPreset {
   particleCount: number;
 }
 
-export type OutfitStyle =
-  | 'long_dress'
-  | 'summer_dress'
-  | 'skirt_blouse'
-  | 'jacket_skirt'
-  | 'trousers_top'
-  | 'saree'
-  | 'gown'
-  | 'casual';
-
 export interface CharacterPreset {
   id: string;
   name: string;
-  dressColor: string;
-  accentColor: string;
-  hairColor: string;
-  skinTone: string;
-  /** 1.0 = ankle length, lower = shorter */
-  dressLength: number;
-  /** 0 = loose A-line, 1 = fitted */
-  fit: number;
-  style: OutfitStyle;
   description: string;
-  /** Optional path to a GLB model under public/assets/characters/ */
-  glbPath?: string;
+  /** GLB file under public/assets/characters/ */
+  glbPath: string;
+  /** 'body' = full character (default). 'garment' = dress only, shown on an invisible mannequin. */
+  kind?: 'body' | 'garment';
+  /** garment only: real-world length of the garment in metres */
+  garmentHeight?: number;
+  /** colour dot shown in the list */
+  swatch: string;
 }
 
 export type Phase = 'idle' | 'listening' | 'error';

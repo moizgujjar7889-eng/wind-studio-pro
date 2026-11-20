@@ -12,6 +12,8 @@ export interface CharacterRig {
   hairRoots: THREE.Vector3[];
   /** Target for hand hold animation (waist / hem area) */
   holdTarget: THREE.Vector3;
+  /** Optional animation hook used by imported GLB rigs. */
+  update?: (dt: number, time: number, wind01: number) => void;
   dispose: () => void;
 }
 

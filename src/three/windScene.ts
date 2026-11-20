@@ -38,11 +38,13 @@ export class WindScene {
     this.onFps = opts.onFps;
 
     this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
+      antialias: window.innerWidth > 700,
       alpha: false,
       powerPreference: 'high-performance',
+      stencil: false,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -160,6 +162,7 @@ export class WindScene {
 
     this.env.update(dt, time, this.windLevel);
     this.dress?.update(dt, time, this.windLevel);
+    this.rig?.update?.(dt, time, this.windLevel);
 
     // Gentle sway for GLB models under wind
     if (this.rig && !this.dress && this.windLevel > 0.05) {
@@ -194,6 +197,7 @@ export class WindScene {
     }
     this.env.dispose();
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
     if (this.renderer.domElement.parentElement) {
       this.renderer.domElement.parentElement.removeChild(this.renderer.domElement);
     }

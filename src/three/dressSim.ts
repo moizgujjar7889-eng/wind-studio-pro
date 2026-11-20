@@ -120,11 +120,11 @@ export function createDressSimulation(
     // Clamp & shape wind
     const w = Math.max(0, Math.min(1, wind01));
     // Strong non-linear response so heavy blow lifts a lot
-    const lift = Math.pow(w, 0.75) * 1.15;
+    const lift = Math.pow(w, 1.15) * 1.45;
 
     // Wind force vector (stronger upward + sideways when high)
     tmpWind.copy(WIND_DIR).multiplyScalar(18 * lift);
-    tmpWind.y += 9 * lift * lift; // extra upward lift on strong blow
+    tmpWind.y += 13 * lift * lift; // extra upward lift on strong blow
 
     // Small turbulence
     tmpWind.x += Math.sin(time * 7.3) * 1.8 * lift;
@@ -223,18 +223,18 @@ export function createDressSimulation(
 
     // ---- Hand hold animation ----
     // Hands rise and move toward the hem when wind is strong
-    const targetHold = Math.min(1, Math.pow(w, 1.1) * 1.25);
+    const targetHold = THREE.MathUtils.smoothstep(w, 0.18, 0.78);
     holdBlend += (targetHold - holdBlend) * Math.min(1, dt * 6);
 
     // Left arm
-    const leftRaise = holdBlend * 1.15;
-    const leftIn = holdBlend * 0.55;
-    rig.leftArm.rotation.z = 0.25 - leftRaise * 0.85;
+    const leftRaise = holdBlend * 1.38;
+    const leftIn = holdBlend * 0.72;
+    rig.leftArm.rotation.z = 0.25 - leftRaise * 0.95;
     rig.leftArm.rotation.x = leftIn * 0.7;
     rig.leftArm.rotation.y = holdBlend * 0.35;
 
     // Right arm (mirror)
-    rig.rightArm.rotation.z = -0.25 + leftRaise * 0.85;
+    rig.rightArm.rotation.z = -0.25 + leftRaise * 0.95;
     rig.rightArm.rotation.x = leftIn * 0.7;
     rig.rightArm.rotation.y = -holdBlend * 0.35;
 

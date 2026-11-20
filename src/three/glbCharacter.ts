@@ -79,6 +79,8 @@ export async function loadGLBCharacter(
   model.updateMatrixWorld(true);
 
   const modelHeight = 1.72;
+  const baseScale = model.scale.y;
+  const basePosY = model.position.y;
   const windUniforms = { uWind: { value: 0 }, uTime: { value: 0 } };
   const mixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null;
   gltf.animations.forEach((clip) => mixer?.clipAction(clip).play());
@@ -97,9 +99,8 @@ export async function loadGLBCharacter(
         mat.envMapIntensity = 0.8;
         // Metal without an environment map renders pure black.
         mat.metalness = Math.min(mat.metalness ?? 0, 0.1);
-        mat.side = THREE.DoubleSide;
         if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
-        if (mat.transparent || mat.alphaTest > 0) { mat.alphaTest = 0.4; mat.transparent = false; mat.depthWrite = true; }
+        if (mat.transparent) { mat.alphaTest = Math.max(mat.alphaTest, 0.35); mat.transparent = false; mat.depthWrite = true; }
         mat.emissive = mat.emissive ?? new THREE.Color(0);
         if (mat.map && mat.emissive.getHex() === 0) { mat.emissive.set(0xffffff); mat.emissiveMap = mat.map; mat.emissiveIntensity = 0.18; }
         mat.needsUpdate = true;
@@ -151,7 +152,7 @@ export async function loadGLBCharacter(
   const update = (dt: number, time: number, wind01: number) => {
     const w = THREE.MathUtils.clamp(wind01, 0, 1);
     mixer?.update(Math.min(dt, 0.05));
-    windUniforms.uWind.value = Math.pow(w, 1.35);
+    windUniforms.uWind.value = 0.05 + Math.pow(w, 1.35) * 0.95;
     windUniforms.uTime.value = time;
     // Only animated if the downloaded model actually contains named arm bones.
     const hold = THREE.MathUtils.smoothstep(w, 0.18, 0.82);
@@ -160,7 +161,15 @@ export async function loadGLBCharacter(
       bone.rotation.x = base.x + hold * 0.45;
       bone.rotation.z = base.z + sign * hold * 0.72;
     });
-    group.rotation.z = Math.sin(time * 2.5) * 0.018 * w;
+    // Life-like idle: breathing, slow weight shift, small look-around; wind adds lean and sway.
+    const breath = Math.sin(time * 1.7);
+    model.scale.y = baseScale * (1 + 0.004 * breath);
+    model.position.y = basePosY + 0.002 * breath;
+    const targetLean = -0.07 * w;
+    group.rotation.x += (targetLean - group.rotation.x) * Math.min(1, dt * 4);
+    group.rotation.z = Math.sin(time * 0.9) * 0.012 + Math.sin(time * 3.1) * 0.02 * w;
+    group.rotation.y = Math.sin(time * 0.55) * 0.06 + Math.sin(time * 1.9) * 0.035 * w;
+    group.position.x = Math.sin(time * 0.7) * 0.012 + Math.sin(time * 2.3) * 0.015 * w;
   };
 
   const dispose = () => {

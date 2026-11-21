@@ -5,6 +5,7 @@ import {
   Mic,
   MicOff,
   Palette,
+  Wind,
 } from 'lucide-react';
 import type { CharacterPreset, LocationPreset } from './lib/types';
 import { LOCATIONS } from './lib/locations';

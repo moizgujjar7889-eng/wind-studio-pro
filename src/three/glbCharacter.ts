@@ -91,6 +91,9 @@ float nod = sin(t * 0.29 + 0.7) * 0.05 + breath * 0.008;
 wDisp.z += (y - 1.5) * nod * headW;
 wDisp.x += (y - 1.5) * sin(t * 0.23 + 1.3) * 0.03 * headW;
 
+// idle strength: 1.0 = subtle, 2.5 = clearly alive. Change this one number to taste.
+wDisp *= 2.5;
+
 // ---- blow wind: ONLY when uWind > 0 (the app sends exactly 0 when nobody blows) ----
 if (uWind > 0.001 && uWeight > 0.01) {
   float nY = clamp((y - uHemLo) / max(uHemHi - uHemLo, 0.1), 0.0, 1.0);

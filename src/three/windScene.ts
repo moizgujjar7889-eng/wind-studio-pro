@@ -4,6 +4,7 @@ import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import type { CharacterPreset, LocationPreset } from '../lib/types';
 import type { CharacterRig } from './character';
 import { loadGLBCharacter } from './glbCharacter';
+import { WIND_MIN } from '../lib/windEngine';
 import { createEnvironment, type EnvironmentHandle } from './environment';
 
 export interface WindSceneOptions {
@@ -190,7 +191,9 @@ export class WindScene {
   }
 
   setWind(level: number) {
-    this.windLevel = Math.max(0, Math.min(1, level));
+    // Single gate for cloth AND particles: anything below WIND_MIN is exactly 0.
+    const l = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0;
+    this.windLevel = l < WIND_MIN ? 0 : l;
   }
 
   addYaw(delta: number) {

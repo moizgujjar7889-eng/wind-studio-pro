@@ -288,8 +288,9 @@ export function createEnvironment(
     const pos = pGeo.getAttribute('position') as THREE.BufferAttribute;
     const blowing = wind01 > 0.03;
     const speed = particleType === 'snow' ? 0.8 + wind01 * 4 : wind01 * 5;
-    particles.visible = blowing || particleType === 'snow';
-    pMat.opacity = particleType === 'snow' ? 0.85 : 0.85 * Math.min(1, wind01 * 3);
+    // No blow = no particles (snow included); they only exist while there is wind.
+    particles.visible = blowing;
+    pMat.opacity = 0.85 * Math.min(1, wind01 * 3);
     if (!particles.visible) return;
 
     for (let i = 0; i < currentCount; i++) {

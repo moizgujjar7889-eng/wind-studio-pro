@@ -261,7 +261,7 @@ export default function App() {
               } else {
                 stopMic();
                 setUseManual(true);
-                setManualWind(0.45);
+                setManualWind(0); // slider starts at 0: wind only after the user moves it
               }
             }}
             className={`flex items-center gap-2 px-3.5 py-2.5 rounded-full text-sm border transition ${

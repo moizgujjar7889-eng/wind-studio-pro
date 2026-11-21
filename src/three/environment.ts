@@ -252,7 +252,7 @@ export function createEnvironment(
     hdriOn = on;
     sky.visible = !on;
     scenery.visible = !on;
-    ground.material = on ? shadowOnlyMat : groundMat;
+    (ground as THREE.Mesh).material = on ? shadowOnlyMat : groundMat;
     if (on) {
       applyHdriLighting();
     } else {

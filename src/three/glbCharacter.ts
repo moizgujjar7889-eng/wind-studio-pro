@@ -81,7 +81,7 @@ wDisp.z += breath * (0.005 * chestW + 0.003 * bellyW);
 wDisp.y += breath * 0.004 * smoothstep(1.30, 1.50, y);
 // upper-body twist + head turn (rotation around the vertical axis)
 float tw = (sin(t * 0.5) * 0.05 + sin(t * 0.21 + 1.0) * 0.03) * smoothstep(0.90, 1.45, y);
-float headW = smoothstep(1.50, 1.62, y);
+float headW = 0.0; // head/face never moves (was warping the face)
 float hd = (sin(t * 0.37 + 0.5) * 0.11 + sin(t * 0.93 + 2.0) * 0.025) * headW;
 vec2 rd = rot2(wPos.xz, tw + hd);
 wDisp.x += rd.x;
@@ -92,7 +92,7 @@ wDisp.z += (y - 1.5) * nod * headW;
 wDisp.x += (y - 1.5) * sin(t * 0.23 + 1.3) * 0.03 * headW;
 
 // idle strength: 1.0 = subtle, 2.5 = clearly alive. Change this one number to taste.
-wDisp *= 2.5;
+wDisp *= 1.2;
 
 // ---- blow wind: ONLY when uWind > 0 (the app sends exactly 0 when nobody blows) ----
 if (uWind > 0.001 && uWeight > 0.01) {

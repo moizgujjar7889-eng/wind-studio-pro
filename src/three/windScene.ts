@@ -4,6 +4,7 @@ import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import type { CharacterPreset, LocationPreset } from '../lib/types';
 import type { CharacterRig } from './character';
 import { loadGLBCharacter } from './glbCharacter';
+import { loadFBXCharacter } from './fbxCharacter';
 import { WIND_MIN } from '../lib/windEngine';
 import { createEnvironment, type EnvironmentHandle } from './environment';
 
@@ -169,7 +170,8 @@ export class WindScene {
 
     this.loading = true;
     this.onLoading?.(true);
-    loadGLBCharacter(preset, preset.glbPath)
+    const loadRig = preset.glbPath.toLowerCase().endsWith('.fbx') ? loadFBXCharacter : loadGLBCharacter;
+    loadRig(preset, preset.glbPath)
       .then((rig) => {
         if (this.disposed || myLoadId !== this.loadId) {
           rig.dispose();

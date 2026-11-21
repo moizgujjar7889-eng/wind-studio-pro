@@ -45,6 +45,10 @@ export interface CharacterPreset {
   kind?: 'body' | 'garment';
   /** garment only: real-world length of the garment in metres */
   garmentHeight?: number;
+  /** garment only: GLB of a body the garment is worn on */
+  mannequin?: string;
+  /** garment only: [x, z] metres to line the garment up with the mannequin torso */
+  offset?: [number, number];
   /** colour dot shown in the list */
   swatch: string;
 }

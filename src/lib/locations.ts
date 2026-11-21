@@ -276,4 +276,7 @@ export const LOCATIONS: Record<LocationId, LocationPreset> = {
   },
 };
 
-export const LOCATION_LIST: LocationPreset[] = Object.values(LOCATIONS);
+/** Places that have a real photo in public/assets/places/<id>.jpg. Add the id here after adding a photo. */
+export const REAL_PLACE_IDS: LocationId[] = ['garden', 'terrace', 'rooftop', 'courtyard', 'park', 'desert', 'western'];
+
+export const LOCATION_LIST: LocationPreset[] = REAL_PLACE_IDS.map((id) => LOCATIONS[id]);

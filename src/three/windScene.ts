@@ -35,7 +35,7 @@ export class WindScene {
   private lowFpsSeconds = 0;
   private roomEnv: THREE.Texture | null = null;
   private pmrem: THREE.PMREMGenerator | null = null;
-  private hdriTex: THREE.Texture | null = null;
+  private hdriTexs: THREE.Texture[] = [];
   private hdriId = 0;
   private currentLocId = '';
   private disposed = false;
@@ -100,9 +100,8 @@ export class WindScene {
   }
 
   /**
-   * Optional realistic place: drop a Poly Haven .hdr into public/assets/places/<locationId>.hdr
-   * (e.g. garden.hdr, beach.hdr). If the file exists it is used as sky + lighting; otherwise the
-   * built-in procedural place is shown.
+   * Real places: public/assets/places/<id>.jpg is the 360 photo, <id>_env.hdr is a tiny lighting map.
+   * If the photo does not exist the (simple) built-in place is shown.
    */
   private async tryLoadHdri(id: string) {
     const myId = ++this.hdriId;
@@ -111,27 +110,42 @@ export class WindScene {
       this.scene.background = null;
       this.scene.environment = this.roomEnv;
       this.scene.environmentIntensity = 0.5;
-      this.hdriTex?.dispose();
-      this.hdriTex = null;
+      this.hdriTexs.forEach((t) => t.dispose());
+      this.hdriTexs = [];
+    };
+    const exists = async (url: string) => {
+      const head = await fetch(url, { method: 'HEAD' });
+      return head.ok && !(head.headers.get('content-type') || '').includes('text/html');
     };
     try {
-      const url = `/assets/places/${id}.hdr`;
-      const head = await fetch(url, { method: 'HEAD' });
-      const type = head.headers.get('content-type') || '';
-      if (!head.ok || type.includes('text/html')) {
+      const base = `/assets/places/${id}`;
+      if (!(await exists(`${base}.jpg`))) {
         if (myId === this.hdriId) clear();
         return;
       }
-      const tex = await new RGBELoader().loadAsync(url);
+      const bg = await new THREE.TextureLoader().loadAsync(`${base}.jpg`);
+      bg.mapping = THREE.EquirectangularReflectionMapping;
+      bg.colorSpace = THREE.SRGBColorSpace;
+      let envTex: THREE.Texture = bg;
+      const texs: THREE.Texture[] = [bg];
+      try {
+        if (await exists(`${base}_env.hdr`)) {
+          const e = await new RGBELoader().loadAsync(`${base}_env.hdr`);
+          e.mapping = THREE.EquirectangularReflectionMapping;
+          envTex = e;
+          texs.push(e);
+        }
+      } catch {
+        /* lighting map is optional */
+      }
       if (this.disposed || myId !== this.hdriId) {
-        tex.dispose();
+        texs.forEach((t) => t.dispose());
         return;
       }
-      tex.mapping = THREE.EquirectangularReflectionMapping;
       clear();
-      this.hdriTex = tex;
-      this.scene.background = tex;
-      this.scene.environment = tex;
+      this.hdriTexs = texs;
+      this.scene.background = bg;
+      this.scene.environment = envTex;
       this.scene.environmentIntensity = 0.9;
       this.env.setHdri(true);
     } catch {
@@ -241,7 +255,7 @@ export class WindScene {
       this.rig.dispose();
     }
     this.env.dispose();
-    this.hdriTex?.dispose();
+    this.hdriTexs.forEach((t) => t.dispose());
     this.roomEnv?.dispose();
     this.pmrem?.dispose();
     this.renderer.dispose();

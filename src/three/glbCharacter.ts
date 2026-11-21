@@ -44,6 +44,12 @@ vec3 wDisp = vec3(
 );
 float chest = smoothstep(1.0, 1.2, wPos.y) * (1.0 - smoothstep(1.35, 1.55, wPos.y));
 wDisp.z += sin(uTime * 1.9) * 0.006 * chest;
+float tw = sin(uTime * 0.55) * 0.075 * smoothstep(0.85, 1.5, wPos.y);
+float ct = cos(tw); float st = sin(tw);
+wDisp.x += ct * wPos.x - st * wPos.z - wPos.x;
+wDisp.z += st * wPos.x + ct * wPos.z - wPos.z;
+float hip = smoothstep(0.55, 0.95, wPos.y) * (1.0 - smoothstep(1.0, 1.35, wPos.y));
+wDisp.x += sin(uTime * 0.5 + 0.6) * 0.035 * hip;
 if (uWind > 0.001) {
   float nY = clamp((wPos.y - uHemLo) / max(uHemHi - uHemLo, 0.1), 0.0, 1.0);
   float mask = uWeight > 0.99 ? 1.0 : smoothstep(0.2, 0.3, rad) * (1.0 - smoothstep(0.95, 1.1, wPos.y));
@@ -62,7 +68,7 @@ transformed += inverse(mat3(modelMatrix)) * wDisp;
 #include <project_vertex>`,
       );
   };
-  mat.customProgramCacheKey = () => `wind3-${weight}`;
+  mat.customProgramCacheKey = () => `wind4-${weight}`;
   mat.needsUpdate = true;
 }
 
@@ -102,49 +108,23 @@ function shrinkTexture(tex: THREE.Texture | null | undefined, done: Set<THREE.Te
   tex.needsUpdate = true;
 }
 
-/** Loads a GLB, normalizes it to a common height, and adds a restrained wind response. */
-export async function loadGLBCharacter(
-  preset: CharacterPreset,
-  path: string,
-): Promise<CharacterRig> {
-  const gltf = await getLoader().loadAsync(path);
+function normalizeModel(model: THREE.Object3D, targetHeight: number, lift: number, offset: [number, number] = [0, 0]) {
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  if (!Number.isFinite(size.y) || size.y < 0.01) throw new Error('Invalid model dimensions');
+  model.scale.setScalar(targetHeight / size.y);
+  model.updateMatrixWorld(true);
+  const scaled = new THREE.Box3().setFromObject(model);
+  const c = scaled.getCenter(new THREE.Vector3());
+  model.position.x += -c.x + offset[0];
+  model.position.z += -c.z + offset[1];
+  model.position.y += -scaled.min.y + lift;
+  model.updateMatrixWorld(true);
+}
+
+function styleModel(model: THREE.Object3D, isGarment: boolean, windUniforms: WindUniforms) {
   const doneTex = new Set<THREE.Texture>();
-  const group = new THREE.Group();
-  const model = gltf.scene;
-
-  // Normalize before adding to the live scene; use the unscaled bounds for reliable feet placement.
-  model.updateMatrixWorld(true);
-  const originalBox = new THREE.Box3().setFromObject(model);
-  const originalSize = originalBox.getSize(new THREE.Vector3());
-  if (!Number.isFinite(originalSize.y) || originalSize.y < 0.01) {
-    throw new Error(`Invalid character dimensions: ${path}`);
-  }
-  const isGarment = preset.kind === 'garment';
-  const targetHeight = isGarment ? preset.garmentHeight ?? 1.45 : 1.72;
-  const scale = targetHeight / originalSize.y;
-  model.scale.setScalar(scale);
-  model.updateMatrixWorld(true);
-  const scaledBox = new THREE.Box3().setFromObject(model);
-  const center = scaledBox.getCenter(new THREE.Vector3());
-  model.position.x -= center.x;
-  model.position.z -= center.z;
-  model.position.y -= scaledBox.min.y;
-  // Garments hang on an invisible mannequin: top of the garment sits at shoulder height.
-  const lift = isGarment ? Math.max(0.03, 1.46 - targetHeight) : 0;
-  model.position.y += lift;
-  model.updateMatrixWorld(true);
-
-  const baseScale = model.scale.y;
-  const basePosY = model.position.y;
-  const windUniforms: WindUniforms = {
-    uWind: { value: 0 },
-    uTime: { value: 0 },
-    uHemLo: { value: isGarment ? lift : 0.3 },
-    uHemHi: { value: isGarment ? lift + targetHeight * 0.85 : 1.05 },
-  };
-  const mixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null;
-  gltf.animations.forEach((clip) => mixer?.clipAction(clip).play());
-
   model.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
@@ -163,13 +143,10 @@ export async function loadGLBCharacter(
         [mat.map, mat.normalMap, mat.roughnessMap, mat.metalnessMap].forEach((t) => {
           if (t) t.anisotropy = 4;
         });
-        // Skin/cloth look realistic with some roughness; env map (see windScene) handles reflections.
         mat.roughness = Math.max(0.42, Math.min(mat.roughness ?? 0.75, 0.92));
         mat.metalness = Math.min(mat.metalness ?? 0, 0.2);
         mat.envMapIntensity = 1.0;
-        if (/hair/.test(meshName)) {
-          mat.roughness = Math.max(mat.roughness, 0.55);
-        }
+        if (/hair/.test(meshName)) mat.roughness = Math.max(mat.roughness, 0.55);
         if (mat.transparent) {
           // Hair cards / lashes: cut-out instead of blending avoids sorting glitches.
           mat.alphaTest = Math.max(mat.alphaTest, 0.4);
@@ -183,17 +160,49 @@ export async function loadGLBCharacter(
         mat.needsUpdate = true;
       }
     });
-
-    // Every mesh gets idle life; the hem-flare wind is limited to the lower, loose part (see shader).
     const clothNamed = isGarment || /dress|skirt|cloth|fabric|gown|denim|cotton|oxford|rib|silk|satin|lace/.test(meshName);
     mats.forEach((mat) => applyGpuWind(mat, windUniforms, clothNamed ? 1 : 0.5));
   });
+}
 
+/** Loads a GLB (plus a mannequin body for outfit-only files), normalizes size and adds idle + blow motion. */
+export async function loadGLBCharacter(
+  preset: CharacterPreset,
+  path: string,
+): Promise<CharacterRig> {
+  const loader = getLoader();
+  const isGarment = preset.kind === 'garment';
+  const [gltf, bodyGltf] = await Promise.all([
+    loader.loadAsync(path),
+    isGarment && preset.mannequin ? loader.loadAsync(preset.mannequin) : Promise.resolve(null),
+  ]);
+  const group = new THREE.Group();
+  const model = gltf.scene;
+
+  const targetHeight = isGarment ? preset.garmentHeight ?? 1.45 : 1.72;
+  // Garment top sits at shoulder height; long gowns reach the floor.
+  const lift = isGarment ? Math.max(0.03, 1.46 - targetHeight) : 0;
+  normalizeModel(model, targetHeight, lift, isGarment ? preset.offset : undefined);
+
+  const windUniforms: WindUniforms = {
+    uWind: { value: 0 },
+    uTime: { value: 0 },
+    uHemLo: { value: isGarment ? lift : 0.3 },
+    uHemHi: { value: isGarment ? lift + targetHeight * 0.85 : 1.05 },
+  };
+  const mixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null;
+  gltf.animations.forEach((clip) => mixer?.clipAction(clip).play());
+
+  if (bodyGltf) {
+    const bodyModel = bodyGltf.scene;
+    normalizeModel(bodyModel, 1.72, 0);
+    styleModel(bodyModel, false, windUniforms);
+    group.add(bodyModel);
+  }
+  styleModel(model, isGarment, windUniforms);
   group.add(model);
-  model.updateMatrixWorld(true);
+  group.updateMatrixWorld(true);
 
-  // Fallback anchors are used by procedural systems; imported models without a skeleton keep their
-  // authored pose rather than displaying fake floating arms.
   const body = new THREE.Group();
   group.add(body);
   const leftArm = new THREE.Group();
@@ -236,15 +245,14 @@ export async function loadGLBCharacter(
       bone.rotation.x = base.x + hold * 0.45;
       bone.rotation.z = base.z + sign * hold * 0.72;
     });
-    // Idle life (always): breathing, weight shift, slow turn.
+    // Idle life (always): breathing, weight shift, slow turn. Body bend/twist is in the shader.
     const breath = Math.sin(time * 1.7);
-    model.scale.y = baseScale * (1 + 0.006 * breath);
-    model.position.y = basePosY + 0.003 * breath;
+    group.scale.y = 1 + 0.006 * breath;
     const targetLean = -0.07 * w;
     group.rotation.x += (targetLean - group.rotation.x) * Math.min(1, dt * 4);
-    group.rotation.z = Math.sin(time * 0.8) * 0.02 + Math.sin(time * 3.1) * 0.02 * w;
-    group.rotation.y = Math.sin(time * 0.45) * 0.11 + Math.sin(time * 0.17 + 1.0) * 0.05 + Math.sin(time * 1.9) * 0.035 * w;
-    group.position.x = Math.sin(time * 0.6) * 0.02 + Math.sin(time * 2.3) * 0.015 * w;
+    group.rotation.z = Math.sin(time * 0.8) * 0.028 + Math.sin(time * 3.1) * 0.02 * w;
+    group.rotation.y = Math.sin(time * 0.45) * 0.14 + Math.sin(time * 0.17 + 1.0) * 0.07 + Math.sin(time * 1.9) * 0.035 * w;
+    group.position.x = Math.sin(time * 0.6) * 0.025 + Math.sin(time * 2.3) * 0.015 * w;
   };
 
   const dispose = () => {

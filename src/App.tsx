@@ -27,6 +27,7 @@ export default function App() {
     () => CHARACTERS.find((c) => c.id === DEFAULT_CHARACTER_ID) ?? CHARACTERS[0],
   );
   const [loadingModel, setLoadingModel] = useState(false);
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [listening, setListening] = useState(false);
   const [wind, setWind] = useState(0);
   const [peak, setPeak] = useState(0);
@@ -42,7 +43,10 @@ export default function App() {
     if (!mountRef.current) return;
     const scene = new WindScene(mountRef.current, location, character, {
       onFps: setFps,
-      onLoading: setLoadingModel,
+      onLoading: (l: boolean) => {
+        setLoadingModel(l);
+        if (!l) setTimeout(() => setFirstLoadDone(true), 400);
+      },
       onError: setModelError,
     });
     sceneRef.current = scene;
@@ -187,8 +191,17 @@ export default function App() {
         </div>
       </div>
 
+      {/* First-load cover: hides the simple built-in scene until the model + photo are ready */}
+      {!firstLoadDone && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-[#0b1220] text-white/90">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/25 border-t-white/90" />
+          <div className="text-sm">Wind Studio load ho raha hai…</div>
+          <div className="text-xs text-white/50">Pehli dafa thora time lag sakta hai</div>
+        </div>
+      )}
+
       {/* Error */}
-      {loadingModel && (
+      {loadingModel && firstLoadDone && (
         <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
           <div className="bg-black/55 text-white/90 text-xs px-4 py-2 rounded-full backdrop-blur-sm">
             Model load ho raha hai…
@@ -261,7 +274,7 @@ export default function App() {
               } else {
                 stopMic();
                 setUseManual(true);
-                setManualWind(0); // slider starts at 0: wind only after the user moves it
+                setManualWind(0.45);
               }
             }}
             className={`flex items-center gap-2 px-3.5 py-2.5 rounded-full text-sm border transition ${
